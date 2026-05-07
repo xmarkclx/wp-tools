@@ -8,8 +8,8 @@ i.e.
 
 ```bash
 curl -fsSL 'https://raw.githubusercontent.com/xmarkclx/wp-tools/main/test.sh' | bash
-curl -fsSL 'https://raw.githubusercontent.com/xmarkclx/wp-tools/main/sync-db.sh' | bash
-curl -fsSL 'https://raw.githubusercontent.com/xmarkclx/wp-tools/main/restore-db.sh' | bash
+curl -fsSL 'https://raw.githubusercontent.com/xmarkclx/wp-tools/main/sync-db.sh' | bash -s --y
+curl -fsSL 'https://raw.githubusercontent.com/xmarkclx/wp-tools/main/restore-db.sh' | bash -s --y
 ```
 
 # Versioning
