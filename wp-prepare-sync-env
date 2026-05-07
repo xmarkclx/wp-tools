@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# 📝 wp-prepare-sync-env — Create ./sync.env with placeholder values when missing
+#     so you can edit SSH host, paths, and optional rsync settings.
+#
+# 📤 Writes:
+#   - ./sync.env   (only if it does not already exist)
+#
+# 🚀 Usage:
+#   wp-prepare-sync-env
+#   wp-prepare-sync-env -h
+
+set -euo pipefail
+
+COMMAND_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=wp-tools-lib.sh
+source "${COMMAND_DIR}/wp-tools-lib.sh"
+wp_tools_set_script_name "wp-prepare-sync-env"
+
+log() { wp_log "$@"; }
+ok() { wp_ok "$@"; }
+warn() { wp_warn "$@"; }
+err() { wp_err "$@"; }
+
+PROJECT_DIR="$(wp_project_dir)"
+cd "$PROJECT_DIR"
+
+SYNC_ENV_FILE="${PROJECT_DIR}/sync.env"
+
+while (( $# > 0 )); do
+    case "$1" in
+        -h|--help) sed -n '1,14p' "$0"; exit 0 ;;
+        *) err "❌ Unknown argument: $1"; exit 1 ;;
+    esac
+done
+
+if [[ -f "$SYNC_ENV_FILE" ]]; then
+    ok "📄 ${SYNC_ENV_FILE} already exists — leaving it unchanged."
+    exit 0
+fi
+
+log "✏️  Creating ${SYNC_ENV_FILE} with dummy values — edit before syncing."
+
+cat >"$SYNC_ENV_FILE" <<'EOF'
+# 🔧 Required — SSH target for the remote/source site (edit me).
+SSH_HOST=user@example.com
+
+# 🔧 Required — remote/source WordPress root on the server (edit me).
+WP_DIR=/var/www/example.com/httpdocs
+
+# 🔌 Optional — SSH port (default 22 if omitted).
+SSH_PORT=22
+
+# 📂 Optional — file sync: source path relative to WP_DIR ("." = whole WP_DIR).
+SRC_SYNC_DIR=.
+
+# 📂 Optional — file sync: destination relative to this local project ("." = here).
+DEST_SYNC_DIR=.
+
+# 🚫 Optional — extra rsync excludes (space-separated).
+# wp-sync-files already excludes .env, sync.env, and backups/ by default.
+SYNC_EXCLUDE='node_modules/* vendor/* web/app/cache/*'
+
+# 🖼️ Optional — uploads-only sync paths (Bedrock-style defaults below).
+SRC_UPLOADS_DIR=web/app/uploads
+DEST_UPLOADS_DIR=web/app/uploads
+UPLOADS_EXCLUDE='cache/* *.log'
+EOF
+
+chmod 0644 "$SYNC_ENV_FILE"
+ok "🎉 Created ${SYNC_ENV_FILE} — open it and replace the dummy SSH_HOST / WP_DIR values."

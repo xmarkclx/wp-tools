@@ -21,6 +21,7 @@ COMMANDS=(
     wp-sync-db
     wp-sync-files
     wp-sync-uploads
+    wp-prepare-sync-env
     wp-restore-db
     wp-tools-lib.sh
 )
