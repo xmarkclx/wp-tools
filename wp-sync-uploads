@@ -85,6 +85,9 @@ log "📂 Dest  : ${LOCAL_PATH}"
 RSYNC_OPTS=(
     -avz
     --human-readable
+    --no-perms
+    --no-owner
+    --no-group
     --info=progress2,stats2
     --partial
     --append-verify     # 📡 resumable — handy on flaky/slow links

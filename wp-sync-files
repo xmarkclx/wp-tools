@@ -72,6 +72,9 @@ RSYNC_OPTS=(
     --info=progress2,stats2
     --partial
     --append-verify
+    --no-perms
+    --no-owner
+    --no-group
     --exclude=.env
     --exclude=sync.env
     --exclude=backups/
