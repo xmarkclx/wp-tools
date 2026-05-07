@@ -12,8 +12,8 @@
 #   - ./backups/db/<dbname>-YYYYmmdd-HHMMSS.sql.gz   (local safety backup)
 #
 # 🚀 Usage:
-#   ./sync-db.sh           # interactive — asks for confirmation
-#   ./sync-db.sh -y        # auto-yes, no prompt (for CI / cron)
+#   ./sync-db.sh           # overwrites local DB after a safety backup (no prompt)
+#   ./sync-db.sh -y        # no-op (kept for backward compatibility with CI/cron)
 
 set -euo pipefail
 
@@ -43,11 +43,10 @@ SRC_ENV_FILE="${SCRIPT_DIR}/src.env"
 DEST_ENV_FILE="${SCRIPT_DIR}/.env"
 BACKUP_DIR="${SCRIPT_DIR}/backups/db"
 
-# 🤖 CLI flags
-ASSUME_YES=0
+# 🤖 CLI flags (-y is a no-op; kept so old invocations still parse)
 for arg in "$@"; do
     case "$arg" in
-        -y|--yes) ASSUME_YES=1 ;;
+        -y|--yes) ;; # backward compat — script no longer prompts
         -h|--help)
             sed -n '1,25p' "$0"; exit 0 ;;
         *) err "Unknown argument: $arg"; exit 1 ;;
@@ -144,13 +143,6 @@ DEST_DB_HOST="${DEST_DB_HOST:-127.0.0.1}"
 
 log "📦 Source DB: ${SRC_DB_USER}@${SRC_DB_HOST}/${SRC_DB_NAME}"
 log "📦 Dest   DB: ${DEST_DB_USER}@${DEST_DB_HOST}/${DEST_DB_NAME}"
-
-# 🛑 Confirmation — about to overwrite the local DB
-if [[ "$ASSUME_YES" -ne 1 ]]; then
-    warn "This will OVERWRITE the local DB '${DEST_DB_NAME}' with data from '${SSH_HOST}:${SRC_DB_NAME}'."
-    read -r -p "Continue? [y/N] " ans
-    [[ "$ans" =~ ^[Yy]$ ]] || { err "Aborted by user."; exit 1; }
-fi
 
 # -----------------------------------------------------------------------------
 # 4️⃣  Build a defaults-extra-file for local mysql/mysqldump
