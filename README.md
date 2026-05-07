@@ -10,6 +10,7 @@ i.e.
 curl -fsSL 'https://raw.githubusercontent.com/xmarkclx/wp-tools/main/sync-db.sh' | bash
 curl -fsSL 'https://raw.githubusercontent.com/xmarkclx/wp-tools/main/restore-db.sh' | bash
 curl -fsSL 'https://raw.githubusercontent.com/xmarkclx/wp-tools/main/sync-uploads.sh' | bash
+curl -fsSL 'https://raw.githubusercontent.com/xmarkclx/wp-tools/main/sync-all.sh' | bash
 curl -fsSL 'https://raw.githubusercontent.com/xmarkclx/wp-tools/main/test.sh' | bash -s -- --show-env --color red
 ```
 
@@ -43,6 +44,16 @@ Restores db.
 ## sync-uploads.sh
 
 Syncs upload folder.
+
+## sync-all.sh
+
+Checks `src.env` and `.env`, then runs the database sync followed by the uploads sync.
+
+Use `--uploads-dry-run` to run the DB sync normally and dry-run only the uploads sync:
+
+```bash
+curl -fsSL 'https://raw.githubusercontent.com/xmarkclx/wp-tools/main/sync-all.sh' | bash -s -- --uploads-dry-run
+```
 
 # Backups
 
