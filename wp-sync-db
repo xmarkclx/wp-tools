@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# 🗄️  sync-db.sh — Pull the remote (source) WordPress database down to the
+# 🗄️  wp-sync-db — Pull the remote (source) WordPress database down to the
 #                  local (destination) database, after taking a safety backup
 #                  of the local DB first.
 #
 # 📥 Reads:
-#   - ./src.env                     → SSH_HOST, WP_DIR (the remote WP root)
+#   - ./sync.env                    → SSH_HOST, WP_DIR (the remote WP root)
 #   - ./.env                        → DB_NAME / DB_USER / DB_PASSWORD (local)
 #   - <SSH_HOST>:<WP_DIR>/.env      → DB_NAME / DB_USER / DB_PASSWORD (remote)
 #
@@ -12,36 +12,29 @@
 #   - ./backups/db/<dbname>-YYYYmmdd-HHMMSS.sql.gz   (local safety backup)
 #
 # 🚀 Usage:
-#   ./sync-db.sh           # overwrites local DB after a safety backup (no prompt)
-#   ./sync-db.sh -y        # no-op (kept for backward compatibility with CI/cron)
+#   wp-sync-db           # overwrites local DB after a safety backup (no prompt)
+#   wp-sync-db -y        # no-op (kept for backward compatibility with CI/cron)
 
 set -euo pipefail
 
-# 🎨 Pretty logging helpers
-log()  { printf '\033[1;34m[sync-db]\033[0m %s\n' "$*"; }
-ok()   { printf '\033[1;32m[sync-db]\033[0m %s\n' "$*"; }
-warn() { printf '\033[1;33m[sync-db]\033[0m %s\n' "$*"; }
-err()  { printf '\033[1;31m[sync-db]\033[0m %s\n' "$*" >&2; }
+COMMAND_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=wp-tools-lib.sh
+source "${COMMAND_DIR}/wp-tools-lib.sh"
+wp_tools_set_script_name "wp-sync-db"
 
-# 📁 Always operate from the directory the script lives in
-# 📁 Where to look for src.env / .env / backups/db.
-#    - When run normally (`./sync-db.sh`) → directory that contains the script.
-#    - When streamed (`bash <(curl …/sync-db.sh)` or `curl … | bash`) →
-#      fall back to the current working directory, since BASH_SOURCE[0]
-#      points at a /dev/fd/* pseudo-file in that case.
-#    - Manual override: SYNC_DB_DIR=/some/path ./sync-db.sh
-if [[ -n "${SYNC_DB_DIR:-}" ]]; then
-    SCRIPT_DIR="$SYNC_DB_DIR"
-elif [[ -n "${BASH_SOURCE[0]:-}" && -f "${BASH_SOURCE[0]}" ]]; then
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-else
-    SCRIPT_DIR="$PWD"
-fi
-cd "$SCRIPT_DIR"
+log()  { wp_log "$@"; }
+ok()   { wp_ok "$@"; }
+warn() { wp_warn "$@"; }
+err()  { wp_err "$@"; }
+get_env_value() { wp_get_env_value "$@"; }
+escape_mycnf_value() { wp_escape_mycnf_value "$@"; }
 
-SRC_ENV_FILE="${SCRIPT_DIR}/src.env"
-DEST_ENV_FILE="${SCRIPT_DIR}/.env"
-BACKUP_DIR="${SCRIPT_DIR}/backups/db"
+PROJECT_DIR="$(wp_project_dir)"
+cd "$PROJECT_DIR"
+
+SYNC_ENV_FILE="${PROJECT_DIR}/sync.env"
+DEST_ENV_FILE="${PROJECT_DIR}/.env"
+BACKUP_DIR="${PROJECT_DIR}/backups/db"
 
 # 🤖 CLI flags (-y is a no-op; kept so old invocations still parse)
 for arg in "$@"; do
@@ -52,40 +45,6 @@ for arg in "$@"; do
         *) err "Unknown argument: $arg"; exit 1 ;;
     esac
 done
-
-# -----------------------------------------------------------------------------
-# 🔐 escape_mycnf_value <value>
-#   Returns the value double-quoted and escaped so it's safe to drop into a
-#   my.cnf-style [client] section. This is REQUIRED because MySQL's option-file
-#   parser treats '#' as a comment marker mid-line — without quoting, a password
-#   like "abc#123" silently becomes "abc" and auth fails.
-#   Inside double quotes, MySQL recognises \" \\ \n \t \b \r \s \0, so we just
-#   need to escape backslashes and double-quotes ourselves.
-# -----------------------------------------------------------------------------
-escape_mycnf_value() {
-    local v="$1"
-    v="${v//\\/\\\\}"   # escape backslashes first
-    v="${v//\"/\\\"}"   # then escape double quotes
-    printf '"%s"' "$v"
-}
-
-# -----------------------------------------------------------------------------
-# 🔍 get_env_value <file> <KEY>
-#   Extracts a value from an env-style file (KEY=value, KEY='value', KEY="value").
-#   Strips matching surrounding quotes and trailing CR (Windows line endings).
-# -----------------------------------------------------------------------------
-get_env_value() {
-    local file="$1" key="$2" line value
-    # last matching line wins (mirrors typical dotenv behaviour)
-    line="$(grep -E "^[[:space:]]*${key}=" "$file" | tail -n1 || true)"
-    [[ -z "$line" ]] && return 1
-    value="${line#*=}"
-    value="${value%$'\r'}"
-    if   [[ "$value" =~ ^\"(.*)\"$ ]]; then value="${BASH_REMATCH[1]}"
-    elif [[ "$value" =~ ^\'(.*)\'$ ]]; then value="${BASH_REMATCH[1]}"
-    fi
-    printf '%s' "$value"
-}
 
 # 🧹 Tempfile cleanup on exit
 TMP_FILES=()
@@ -98,14 +57,14 @@ cleanup() {
 trap cleanup EXIT
 
 # -----------------------------------------------------------------------------
-# 1️⃣  Read src.env (local file describing the remote)
+# 1️⃣  Read sync.env (local file describing the remote)
 # -----------------------------------------------------------------------------
-[[ -f "$SRC_ENV_FILE"  ]] || { err "Missing $SRC_ENV_FILE";  exit 1; }
+[[ -f "$SYNC_ENV_FILE" ]] || { err "Missing $SYNC_ENV_FILE"; exit 1; }
 [[ -f "$DEST_ENV_FILE" ]] || { err "Missing $DEST_ENV_FILE"; exit 1; }
 
-SSH_HOST="$(get_env_value "$SRC_ENV_FILE" SSH_HOST)" || { err "SSH_HOST missing in src.env"; exit 1; }
-WP_DIR="$(get_env_value "$SRC_ENV_FILE" WP_DIR)"     || { err "WP_DIR missing in src.env";   exit 1; }
-SSH_PORT="$(get_env_value "$SRC_ENV_FILE" SSH_PORT 2>/dev/null || true)"
+SSH_HOST="$(get_env_value "$SYNC_ENV_FILE" SSH_HOST)" || { err "SSH_HOST missing in sync.env"; exit 1; }
+WP_DIR="$(get_env_value "$SYNC_ENV_FILE" WP_DIR)"     || { err "WP_DIR missing in sync.env";   exit 1; }
+SSH_PORT="$(get_env_value "$SYNC_ENV_FILE" SSH_PORT 2>/dev/null || true)"
 SSH_PORT="${SSH_PORT:-22}"
 
 log "🌐 Source: ${SSH_HOST}:${WP_DIR} (port ${SSH_PORT})"

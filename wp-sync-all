@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# 🔄 wp-sync-all — Validate WordPress sync config, then pull DB and files.
+#
+# 📥 Reads:
+#   - ./sync.env → SSH_HOST, WP_DIR
+#   - ./.env     → DB_NAME, DB_USER, DB_PASSWORD
+#
+# 🚀 Usage:
+#   wp-sync-all                         # sync database, then files
+#   wp-sync-all --files-dry-run         # sync database, dry-run files
+
+set -euo pipefail
+
+COMMAND_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=wp-tools-lib.sh
+source "${COMMAND_DIR}/wp-tools-lib.sh"
+wp_tools_set_script_name "wp-sync-all"
+
+PROJECT_DIR="$(wp_project_dir)"
+cd "$PROJECT_DIR"
+
+SYNC_ENV_FILE="${PROJECT_DIR}/sync.env"
+DEST_ENV_FILE="${PROJECT_DIR}/.env"
+FILES_DRY_RUN=0
+
+while (( $# > 0 )); do
+    case "$1" in
+        --files-dry-run)   FILES_DRY_RUN=1; shift ;;
+        --uploads-dry-run) FILES_DRY_RUN=1; shift ;;
+        -h|--help)         sed -n '1,13p' "$0"; exit 0 ;;
+        *)                 wp_err "❌ Unknown argument: $1"; exit 1 ;;
+    esac
+done
+
+wp_log "🔎 Checking sync configuration"
+wp_require_file "$SYNC_ENV_FILE"
+wp_require_file "$DEST_ENV_FILE"
+
+wp_require_env_key "$SYNC_ENV_FILE" "sync.env" SSH_HOST
+wp_require_env_key "$SYNC_ENV_FILE" "sync.env" WP_DIR
+wp_require_env_key "$DEST_ENV_FILE" ".env" DB_NAME
+wp_require_env_key "$DEST_ENV_FILE" ".env" DB_USER
+wp_require_env_key "$DEST_ENV_FILE" ".env" DB_PASSWORD
+
+wp_log "🗄️  Running database sync"
+"${COMMAND_DIR}/wp-sync-db"
+wp_ok "✅ Database sync finished"
+
+files_args=()
+if [[ "$FILES_DRY_RUN" -eq 1 ]]; then
+    files_args+=(--dry-run)
+    wp_warn "🧪 Files dry-run enabled"
+fi
+
+wp_log "📁 Running files sync"
+"${COMMAND_DIR}/wp-sync-files" "${files_args[@]}"
+wp_ok "✅ Files sync finished"
+
+wp_ok "🎉 Full sync complete"
