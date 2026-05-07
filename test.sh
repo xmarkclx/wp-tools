@@ -10,6 +10,7 @@ POSITIONAL=()
 
 usage() {
     cat <<'EOF'
+Streaming Test to test if the streaming instructions work.
 Usage:
   curl -fsSL https://example.test/test.sh | bash -s -- [options] [args...]
 

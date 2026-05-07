@@ -7,10 +7,10 @@ You don't need to clone this, you can run these via streaming as per the instruc
 i.e.
 
 ```bash
-curl -fsSL 'https://raw.githubusercontent.com/xmarkclx/wp-tools/main/test.sh' | bash
 curl -fsSL 'https://raw.githubusercontent.com/xmarkclx/wp-tools/main/sync-db.sh' | bash
 curl -fsSL 'https://raw.githubusercontent.com/xmarkclx/wp-tools/main/restore-db.sh' | bash
 curl -fsSL 'https://raw.githubusercontent.com/xmarkclx/wp-tools/main/sync-uploads.sh' | bash
+curl -fsSL 'https://raw.githubusercontent.com/xmarkclx/wp-tools/main/test.sh' | bash -s -- --show-env --color red
 ```
 
 # Versioning
